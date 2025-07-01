@@ -1,27 +1,24 @@
+# ingestion.py
 import requests
 import pandas as pd
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import chromadb
 import chromadb.utils.embedding_functions as embedding_functions
-# from langchain_community.embeddings import SentenceTransformerEmbeddings
-import uuid # For generating unique IDs
+import uuid
 from bs4 import BeautifulSoup, NavigableString, Comment, Tag
 from urllib.parse import urljoin
 
-urls = ['https://ask.herts.ac.uk/replacement-id-cards-lost-damaged-stolen', 'https://ask.herts.ac.uk/temporary-id-slip-for-exams',
-        'https://ask.herts.ac.uk/student-visa-processing-times-and-application-fees', 'https://ask.herts.ac.uk/accommodation-deposit',
-        'https://ask.herts.ac.uk/accommodation-refund', 'https://ask.herts.ac.uk/council-tax-exemption',
-         'https://ask.herts.ac.uk/change-your-accommodation', 'https://ask.herts.ac.uk/i-m-unhappy-in-my-accommodation', 'https://ask.herts.ac.uk/laundry-on-campus',
-         'https://ask.herts.ac.uk/getting-started-with-the-careers-employment-enterprise-service',
-         'https://ask.herts.ac.uk/welcome-to-the-uk-information-for-international-students', 'https://ask.herts.ac.uk/when-to-apply-to-extend-your-tier-4-visa-from-the-uk',
-         'https://ask.herts.ac.uk/post-study-work-visa', 'https://ask.herts.ac.uk/student-visa-holders-working-during-your-studies', 'https://ask.herts.ac.uk/student-visa-holders-working-during-your-vacation',
-         'https://ask.herts.ac.uk/student-visa-holders-working-on-placement-year',
-         'https://ask.herts.ac.uk/international-student-attendance', 'https://ask.herts.ac.uk/absence-your-tier-4-visa', 'https://ask.herts.ac.uk/student-safety-crime-prevention',
-         'https://ask.herts.ac.uk/do-i-need-a-tv-licence', 'https://ask.herts.ac.uk/student-letters-cae5998a-cefd-447d-ab93-526064295952', 'https://ask.herts.ac.uk/make-a-payment']
+# Import settings from the config file
+from config import (
+    URLS,
+    CHROMA_COLLECTION_NAME,
+    CHROMA_PERSIST_DIRECTORY,
+    EMBEDDING_MODEL_NAME,
+    CHUNK_SIZE,
+    CHUNK_OVERLAP,
+)
 
- # For resolving relative URLs
-
-# Your existing tag_visible function
+# --- (Your existing preprocess_html_content and tag_visible functions go here without change) ---
 def tag_visible(element):
     """Helper function to filter out non-visible HTML elements based on parent."""
     if element.parent.name in ['style', 'script', 'head', 'title', 'meta', '[document]']:
@@ -162,47 +159,34 @@ def preprocess_html_content(html_content: str, base_page_url: str = None):
     
     return cleaned_text
 
-def rag_ingest_urls(urls, collection_name="web_content_collection", persist_directory="./chroma_db_store"):
+def rag_ingest_urls(urls, collection_name=CHROMA_COLLECTION_NAME, persist_directory=CHROMA_PERSIST_DIRECTORY):
     """
     Scrapes a list of URLs, preprocesses their content, and ingests into ChromaDB.
-
-    Args:
-        urls (list): A list of URLs to scrape.
-        collection_name (str): Name for the ChromaDB collection.
-        persist_directory (str): Directory to persist ChromaDB data.
-                                 Set to None for an in-memory database.
     """
     if persist_directory:
         client = chromadb.PersistentClient(path=persist_directory)
     else:
-        client = chromadb.Client() # In-memory client
+        client = chromadb.Client()
 
-    # initialising embedding model
-    # default_ef = SentenceTransformerEmbeddings(model_name="all-mpnet-base-v2")
-    
-
-    # initialising embedding model using ChromaDB's utility
-    default_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-mpnet-base-v2")
+    default_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL_NAME)
     collection = client.get_or_create_collection(
         name=collection_name,
-        embedding_function=default_ef, # Assign the embedding function here
-        # metadata={"hnsw:space": "cosine"} 
+        embedding_function=default_ef,
     )
 
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=600,  # Max characters per chunk
-        chunk_overlap=300, # Characters of overlap between chunks
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
         length_function=len,
-        add_start_index=True, # Adds start index of chunk in original doc as metadata
+        add_start_index=True,
     )
 
-    all_chunks = []
-    all_metadatas = []
-    all_ids = []
+    all_chunks, all_metadatas, all_ids = [], [], []
 
     for url in urls:
         print(f"Processing URL: {url}")
         try:
+            # --- (Your request and processing logic remains here) ---
             headers = { # Mimic a browser to avoid potential blocks
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
@@ -229,7 +213,6 @@ def rag_ingest_urls(urls, collection_name="web_content_collection", persist_dire
                 all_metadatas.append({
                     "source_url": url,
                     "chunk_index": i,
-                    # "original_text_start_index": metadata.get("start_index", -1) # If using add_start_index
                 })
                 all_ids.append(chunk_id)
 
@@ -255,3 +238,7 @@ def rag_ingest_urls(urls, collection_name="web_content_collection", persist_dire
         print("No chunks were generated to add to ChromaDB.")
     
     return collection
+
+if __name__ == "__main__":
+    # The script now uses the URLS list from the config file when run directly.
+    rag_ingest_urls(URLS)

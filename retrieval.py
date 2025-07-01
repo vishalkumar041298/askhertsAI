@@ -24,6 +24,10 @@ if not os.getenv("OPENAI_API_KEY"):
     print("Error: OPENAI_API_KEY environment variable not set.")
     exit()
 
+# --- CHANGE 1: Define a global variable for the retriever ---
+# This will allow us to access the retriever from other scripts like evaluate.py
+retriever = None
+
 def format_docs(docs):
     """Helper function to format retrieved documents for the prompt."""
     return "\n\n".join(doc.page_content for doc in docs)
@@ -32,6 +36,9 @@ def query_rag_with_langchain(query_text):
     """
     Queries the RAG system using Langchain, ChromaDB, and ChatOpenAI.
     """
+    # --- CHANGE 2: Tell the function to use the global retriever variable ---
+    global retriever
+
     try:
         embedding_function = SentenceTransformerEmbeddings(
             model_name=EMBEDDING_MODEL_NAME
@@ -44,10 +51,10 @@ def query_rag_with_langchain(query_text):
             collection_name=CHROMA_COLLECTION_NAME,
             embedding_function=embedding_function,
         )
-        print(f"Successfully connected to ChromaDB collection: '{CHROMA_COLLECTION_NAME}'")
-        print(f"Total documents in collection: {vectorstore._collection.count()}")
-
+        
+        # This now assigns the created retriever to the global variable
         retriever = vectorstore.as_retriever(search_kwargs={"k": K_RETRIEVER})
+        
         print(f"Retriever created. Will fetch top {retriever.search_kwargs['k']} documents.")
 
         template = """You are an assistant for question-answering tasks. 
@@ -65,7 +72,6 @@ def query_rag_with_langchain(query_text):
         prompt = ChatPromptTemplate.from_template(template)
 
         llm = ChatOpenAI(model_name=LLM_MODEL_NAME, temperature=0.4)
-        print("ChatOpenAI model initialized.")
 
         rag_chain = (
             {"context": retriever | format_docs, "question": RunnablePassthrough()}
@@ -73,9 +79,7 @@ def query_rag_with_langchain(query_text):
             | llm
             | StrOutputParser()
         )
-        print("RAG chain created.")
 
-        print(f"\nInvoking RAG chain with query: '{query_text}'")
         answer = rag_chain.invoke(query_text)
         
         return answer

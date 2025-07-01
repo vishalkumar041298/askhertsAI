@@ -29,7 +29,7 @@ URLS = [
 
 # --- ChromaDB Settings ---
 # The directory where the ChromaDB database will be stored.
-CHROMA_PERSIST_DIRECTORY = "./my_askhertsrag_db"
+CHROMA_PERSIST_DIRECTORY = "./askhertsdb"
 # The name of the collection within ChromaDB.
 CHROMA_COLLECTION_NAME = "herts_info_collection"
 

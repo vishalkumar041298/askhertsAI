@@ -154,9 +154,7 @@ def preprocess_html_content(html_content: str, base_page_url: str = None):
     
     # Further clean up multiple spaces/newlines that might result from joining and stripping
     cleaned_text = " ".join(cleaned_text.split())
-    with open('preprocesscontent.txt', 'w') as f:
-        f.write(cleaned_text)
-    
+
     return cleaned_text
 
 def rag_ingest_urls(urls, collection_name=CHROMA_COLLECTION_NAME, persist_directory=CHROMA_PERSIST_DIRECTORY):

@@ -19,8 +19,8 @@ def get_evaluation_dataset():
             "ground_truth": "Yes, you can obtain a temporary ID slip for exams from the Ask Herts Helpdesk if you have lost your card. It is valid for 1 week from the date of issue"
         },
         {
-            "question": "What is the current application fee for a Student Visa from outside the UK?",
-            "ground_truth": "The application fee for a Student Visa made from outside the UK is £524."
+            "question": "What is the current application fee for a Student Visa ?",
+            "ground_truth": "The application fee for a Student Visa is £524."
         },
         # {
         #     "question": "How much is the accommodation deposit?",
@@ -106,10 +106,7 @@ def get_evaluation_dataset():
             "question": "When is the earliest I can apply to extend my Student visa from within the UK?",
             "ground_truth": "You can apply to extend your Student visa up to 3 months before your current visa expires."
         },
-        {
-            "question": "What is the cost to use the laundry machines on campus?",
-            "ground_truth": "The cost for laundry services can be found on the provider's app or website, which is mentioned in the university's laundry guide."
-        },
+
         {
             "question": "What kind of support can the Careers and Employment service offer me?",
             "ground_truth": "The Careers and Employment service offers support with CVs, applications, interview skills, finding part-time jobs, and career planning."
@@ -122,10 +119,7 @@ def get_evaluation_dataset():
             "question": "What is the process for making a payment to the university from overseas?",
             "ground_truth": "International students can make payments through the university's online portal or use services like Convera (formerly Western Union Business Solutions) for bank transfers."
         },
-        {
-            "question": "Are there specific times when I can apply to change my room?",
-            "ground_truth": "Yes, applications to change accommodation are typically only open during specific periods, which are advertised by the accommodation office."
-        },
+
         {
             "question": "How do I request to move rooms, and what is the process if I want to leave my accommodation contract early?",
             "ground_truth": "To request a room move, you must email accommodation@herts.ac.uk with your details, which costs £25 and is subject to checks. To leave early, you need to request it via the 'Early Departure' link on the accommodation portal, but you are liable for the fees until the room is re-let."

@@ -80,7 +80,8 @@ def run_evaluation():
     # ----------------------------------------------------
     
     # Save the results to a CSV file for your report
-    results_filename = f"ragas_evaluation_results_{EMBEDDING_MODEL_NAME}.csv"
+    safe_model_name = EMBEDDING_MODEL_NAME.replace("/", "_").replace(":", "_")
+    results_filename = f"ragas_evaluation_results_{safe_model_name}.csv"
     df.to_csv(results_filename, index=False)
     print(f"\nResults saved to {results_filename}")
 

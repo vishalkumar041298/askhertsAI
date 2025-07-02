@@ -29,13 +29,13 @@ URLS = [
 
 # --- ChromaDB Settings ---
 # The directory where the ChromaDB database will be stored.
-CHROMA_PERSIST_DIRECTORY = "./askhertsdb"
+CHROMA_PERSIST_DIRECTORY = "./askhertsdb2"
 # The name of the collection within ChromaDB.
 CHROMA_COLLECTION_NAME = "herts_info_collection"
 
 # --- RAG Model Settings ---
 # The embedding model to be used for both ingestion and retrieval.
-EMBEDDING_MODEL_NAME = "all-mpnet-base-v2"
+EMBEDDING_MODEL_NAME = "BAAI/bge-large-en-v1.5"
 # The language model to be used for generating answers.
 LLM_MODEL_NAME = "gpt-4o"
 
@@ -45,5 +45,5 @@ CHUNK_OVERLAP = 300
 
 # --- Retriever Settings ---
 # The number of top documents to retrieve from the vector store.
-K_RETRIEVER = 6
+K_RETRIEVER = 8
 

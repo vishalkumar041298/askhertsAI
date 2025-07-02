@@ -21,13 +21,12 @@ from config import (
     URLS,
 )
 
-# --- Improvement 1: Set up structured logging ---
+# --- Set up structured logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Improvement 2: Install and enable request caching ---
-# Cache requests to a local file, expiring after 1 day to get fresh content periodically
-requests_cache.install_cache('web_cache', backend='sqlite', expire_after=86400)
-
+# --- Improvement: Disable cache initially ---
+# We will enable it after the large model is loaded.
+# requests_cache.install_cache('web_cache', backend='sqlite', expire_after=86400) # Commented out
 
 def tag_visible(element):
     """Helper function to filter out non-visible HTML elements."""
@@ -51,7 +50,7 @@ def preprocess_html_content(html_content: str, base_page_url: str):
         main_content = soup.select_one(selector)
         if main_content:
             break
-            
+
     if not main_content:
         main_content = soup.body
         if not main_content:
@@ -75,7 +74,7 @@ def preprocess_html_content(html_content: str, base_page_url: str):
                     caption = table_tag.find('caption')
                     if caption:
                         linearized_table_parts.append(f"Table Caption: {caption.get_text(strip=True)}")
-                    
+
                     # Convert dataframe to a string representation
                     table_str = df.to_string(index=False, header=True)
                     linearized_table_parts.append(table_str)
@@ -98,7 +97,7 @@ def preprocess_html_content(html_content: str, base_page_url: str):
         for child in element.children:
             if not tag_visible(child):
                 continue
-            
+
             if isinstance(child, NavigableString):
                 text_parts.append(child.strip())
             elif isinstance(child, Tag):
@@ -126,9 +125,18 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
     """
     logging.info("Starting RAG ingestion process...")
     client = chromadb.PersistentClient(path=persist_directory)
-    
+
+    # --- NEW: Temporarily uninstall cache for model loading ---
+    if requests_cache.is_installed():
+        requests_cache.uninstall_cache()
+    logging.info("Requests cache disabled for model loading.")
+
     embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL_NAME)
-    
+
+    # --- NEW: Re-install cache after model is loaded ---
+    requests_cache.install_cache('web_cache', backend='sqlite', expire_after=86400)
+    logging.info("Requests cache re-enabled for URL scraping.")
+
     collection = client.get_or_create_collection(
         name=collection_name,
         embedding_function=embedding_function,
@@ -150,12 +158,12 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
             response = requests.get(url, headers=headers, timeout=20)
-            
+
             if response.from_cache:
                 logging.info(f"Loaded from cache: {url}")
 
             response.raise_for_status()
-            
+
             content_type = response.headers.get('Content-Type', '').lower()
             if 'text/html' not in content_type:
                 logging.warning(f"Skipping URL {url} as it is not HTML (Content-Type: {content_type})")
@@ -168,7 +176,7 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
                 continue
 
             chunks = text_splitter.split_text(processed_text)
-            
+
             for i, chunk_text in enumerate(chunks):
                 all_chunks.append(chunk_text)
                 all_metadatas.append({"source": url, "chunk_index": i})
@@ -196,13 +204,13 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
             logging.error(f"Error adding documents to ChromaDB: {e}", exc_info=True)
     else:
         logging.warning("No new chunks were generated to add to ChromaDB.")
-    
+
     return collection
 
 if __name__ == "__main__":
     # Uses settings from config.py when run directly
     rag_ingest_urls(
-        urls=URLS, 
-        collection_name=CHROMA_COLLECTION_NAME, 
+        urls=URLS,
+        collection_name=CHROMA_COLLECTION_NAME,
         persist_directory=CHROMA_PERSIST_DIRECTORY
     )

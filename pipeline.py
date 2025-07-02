@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
+from operator import itemgetter
 from langchain_core.output_parsers import StrOutputParser
 
 # Import settings from your config file
@@ -42,9 +43,9 @@ class RAGPipeline:
 
         # 2. Initialize Vector Store and Retriever
         try:
-            persistent_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIRECTORY)
+            # For older LangChain versions, we pass the directory directly
             self.vectorstore = Chroma(
-                client=persistent_client,
+                persist_directory=CHROMA_PERSIST_DIRECTORY,
                 collection_name=CHROMA_COLLECTION_NAME,
                 embedding_function=self.embedding_function,
             )
@@ -55,13 +56,18 @@ class RAGPipeline:
                                     f"Please ensure you have run the ingestion script. Original error: {e}")
 
         # 3. Initialize Language Model
-        self.llm = ChatOpenAI(model_name=LLM_MODEL_NAME, temperature=0.4)
+        self.llm = ChatOpenAI(model_name=LLM_MODEL_NAME, temperature=0.2)
 
         # 4. Define Prompt Template
-        template = """You are an assistant for question-answering tasks for the University of Hertfordshire.
-        Use only the following retrieved context from the university's official 'Ask Herts' pages to answer the question.
-        If the answer is not contained within the context, state that you don't know the answer. Do not make up information.
-        Be concise and directly answer the user's question.
+        template = """You are a helpful assistant answering questions for the University of Hertfordshire students.
+
+        Use only the context provided below, which has been retrieved from the official 'Ask Herts' pages. 
+        Do not use any outside knowledge. If the context does not contain a direct answer, respond with:
+        "I’m sorry, but I couldn’t find the answer in the provided information."
+
+        Do not make up information or guess. Always stay accurate and concise.
+
+        Your answer must be directly and clearly relevant to the user's specific question.
 
         Context:
         {context}
@@ -71,11 +77,12 @@ class RAGPipeline:
 
         Answer:
         """
+
         prompt = ChatPromptTemplate.from_template(template)
 
-        # 5. Build the main RAG Chain
+        # 5. Build the main RAG Chain (with itemgetter fix)
         self.rag_chain = (
-            {"context": self.retriever | format_docs, "question": RunnablePassthrough()}
+            {"context": itemgetter("question") | self.retriever | format_docs, "question": itemgetter("question")}
             | prompt
             | self.llm
             | StrOutputParser()
@@ -95,7 +102,6 @@ class RAGPipeline:
         return self.chain_with_context.invoke({"question": question})
 
 # --- Global Instance ---
-# This creates a single, reusable instance of the pipeline when the module is imported.
 try:
     rag_pipeline = RAGPipeline()
 except FileNotFoundError as e:

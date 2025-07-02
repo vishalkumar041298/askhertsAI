@@ -26,7 +26,7 @@ def run_evaluation():
     # 1. Load your evaluation dataset
     eval_dataset = get_evaluation_dataset()
     questions = [item["question"] for item in eval_dataset]
-    ground_truths = [[item["ground_truth"]] for item in eval_dataset] # RAGAS expects a list of strings
+    ground_truths = [item["ground_truth"] for item in eval_dataset]
 
     # 2. Get answers and contexts from your RAG system
     answers = []
@@ -69,9 +69,15 @@ def run_evaluation():
     # Convert result to a pandas DataFrame for easier analysis
     df = result.to_pandas()
     
-    print("\n--- Evaluation Results ---")
+    print("\n--- Individual Question Scores ---")
     # Use to_string() to ensure the full dataframe is printed to the console
     print(df.to_string())
+    
+    # --- NEW: Calculate and print the average scores ---
+    average_scores = df[['faithfulness', 'answer_relevancy', 'context_precision', 'context_recall']].mean()
+    print("\n\n--- Overall Average Scores ---")
+    print(average_scores.to_string())
+    # ----------------------------------------------------
     
     # Save the results to a CSV file for your report
     results_filename = f"ragas_evaluation_results_{EMBEDDING_MODEL_NAME}.csv"

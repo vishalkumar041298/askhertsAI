@@ -1,10 +1,8 @@
 # pipeline.py
 
 import os
-import chromadb
 import dotenv
-from langchain_community.embeddings import SentenceTransformerEmbeddings
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -20,7 +18,7 @@ from config import (
     K_RETRIEVER,
 )
 
-# Load environment variables (ensure you have a .env file with your OPENAI_API_KEY)
+# Load environment variables
 dotenv.load_dotenv()
 if not os.getenv("OPENAI_API_KEY"):
     raise ValueError("Error: OPENAI_API_KEY environment variable not set.")
@@ -34,23 +32,23 @@ class RAGPipeline:
     A class to encapsulate the RAG pipeline components, initialized once.
     """
     def __init__(self):
-        print("Initializing RAG Pipeline...")
+        print("Initializing RAG Pipeline with OpenAI Embeddings...")
 
-        # 1. Initialize Embedding Function
-        self.embedding_function = SentenceTransformerEmbeddings(
-            model_name=EMBEDDING_MODEL_NAME
-        )
+        # 1. Initialize Embedding Function using OpenAI
+        # --- THIS IS THE FIX ---
+        # Changed 'model_name' to 'model'
+        self.embedding_function = OpenAIEmbeddings(model=EMBEDDING_MODEL_NAME)
 
         # 2. Initialize Vector Store and Retriever
         try:
-            # For older LangChain versions, we pass the directory directly
             self.vectorstore = Chroma(
                 persist_directory=CHROMA_PERSIST_DIRECTORY,
                 collection_name=CHROMA_COLLECTION_NAME,
                 embedding_function=self.embedding_function,
             )
+            # In your config.py I saw K_RETRIEVER = 6, but the log says 8. Let's make sure it uses the config.
             self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": K_RETRIEVER})
-            print(f"Retriever created. Will fetch top {self.retriever.search_kwargs['k']} documents.")
+            print(f"Retriever created. Will fetch top {K_RETRIEVER} documents.")
         except Exception as e:
             raise FileNotFoundError(f"Failed to initialize ChromaDB from '{CHROMA_PERSIST_DIRECTORY}'. "
                                     f"Please ensure you have run the ingestion script. Original error: {e}")
@@ -61,7 +59,7 @@ class RAGPipeline:
         # 4. Define Prompt Template
         template = """You are a helpful assistant answering questions for the University of Hertfordshire students.
 
-        Use only the context provided below, which has been retrieved from the official 'Ask Herts' pages. 
+        Use only the context provided below, which has been retrieved from the official 'Ask Herts' pages.
         Do not use any outside knowledge. If the context does not contain a direct answer, respond with:
         "I’m sorry, but I couldn’t find the answer in the provided information."
 
@@ -80,14 +78,14 @@ class RAGPipeline:
 
         prompt = ChatPromptTemplate.from_template(template)
 
-        # 5. Build the main RAG Chain (with itemgetter fix)
+        # 5. Build the main RAG Chain
         self.rag_chain = (
             {"context": itemgetter("question") | self.retriever | format_docs, "question": itemgetter("question")}
             | prompt
             | self.llm
             | StrOutputParser()
         )
-        
+
         # 6. Build a separate chain to also return the context for evaluation
         self.chain_with_context = RunnablePassthrough.assign(
             answer=self.rag_chain,

@@ -1,14 +1,17 @@
 # ingestion.py
 import logging
+import os
 import uuid
 from urllib.parse import urljoin
 
 import chromadb
-import chromadb.utils.embedding_functions as embedding_functions
+import dotenv
 import pandas as pd
 import requests
 import requests_cache
 from bs4 import BeautifulSoup, Comment, NavigableString, Tag
+# Import ChromaDB's own embedding function utility
+import chromadb.utils.embedding_functions as embedding_functions
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Import settings from the config file
@@ -24,9 +27,14 @@ from config import (
 # --- Set up structured logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Improvement: Disable cache initially ---
-# We will enable it after the large model is loaded.
-# requests_cache.install_cache('web_cache', backend='sqlite', expire_after=86400) # Commented out
+# --- Enable request caching for web scraping ---
+requests_cache.install_cache('web_cache', backend='sqlite', expire_after=86400)
+
+# --- Load OpenAI API Key ---
+dotenv.load_dotenv()
+if not os.getenv("OPENAI_API_KEY"):
+    raise ValueError("Error: OPENAI_API_KEY environment variable not set.")
+
 
 def tag_visible(element):
     """Helper function to filter out non-visible HTML elements."""
@@ -46,7 +54,6 @@ def preprocess_html_content(html_content: str, base_page_url: str):
     main_content_selectors = ['main', 'article', '#content', '#main-content', '.main-content', '.content']
     main_content = None
     for selector in main_content_selectors:
-        # Simplified selector logic
         main_content = soup.select_one(selector)
         if main_content:
             break
@@ -59,28 +66,22 @@ def preprocess_html_content(html_content: str, base_page_url: str):
     # Process and linearize tables
     for i, table_tag in enumerate(main_content.find_all('table')):
         try:
-            # Using pandas to read HTML table - it's robust
             dfs = pd.read_html(str(table_tag), flavor='bs4', keep_default_na=False, na_values=[])
             linearized_table_parts = []
             if not dfs:
-                # Fallback for tables pandas can't parse
                 raw_text = table_tag.get_text(separator=' ', strip=True)
                 linearized_table_parts.append(f"[Table: {raw_text}]")
             else:
                 for df_index, df in enumerate(dfs):
                     if df.empty:
                         continue
-                    # Add caption if it exists
                     caption = table_tag.find('caption')
                     if caption:
                         linearized_table_parts.append(f"Table Caption: {caption.get_text(strip=True)}")
-
-                    # Convert dataframe to a string representation
                     table_str = df.to_string(index=False, header=True)
                     linearized_table_parts.append(table_str)
 
             linearized_table_text = "\n".join(linearized_table_parts)
-            # Replace the table tag with a more readable text block
             new_div = soup.new_tag("div", **{'class': 'processed-table'})
             new_div.string = f"\n--- Start of Table ---\n{linearized_table_text}\n--- End of Table ---\n"
             table_tag.replace_with(new_div)
@@ -97,7 +98,6 @@ def preprocess_html_content(html_content: str, base_page_url: str):
         for child in element.children:
             if not tag_visible(child):
                 continue
-
             if isinstance(child, NavigableString):
                 text_parts.append(child.strip())
             elif isinstance(child, Tag):
@@ -113,33 +113,26 @@ def preprocess_html_content(html_content: str, base_page_url: str):
                     text_parts.append(_extract_text_and_links(child))
         return " ".join(filter(None, text_parts))
 
-    # Extract final text
     text_with_links = _extract_text_and_links(main_content)
-    cleaned_text = " ".join(text_with_links.split()) # Normalize whitespace
-
+    cleaned_text = " ".join(text_with_links.split())
     return cleaned_text
 
 def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: str):
     """
-    Scrapes URLs, preprocesses content, and ingests it into ChromaDB.
+    Scrapes URLs, preprocesses content, and ingests it into ChromaDB using OpenAI embeddings.
     """
-    logging.info("Starting RAG ingestion process...")
+    logging.info("Starting RAG ingestion process with OpenAI embeddings...")
     client = chromadb.PersistentClient(path=persist_directory)
 
-    # --- NEW: Temporarily uninstall cache for model loading ---
-    if requests_cache.is_installed():
-        requests_cache.uninstall_cache()
-    logging.info("Requests cache disabled for model loading.")
-
-    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL_NAME)
-
-    # --- NEW: Re-install cache after model is loaded ---
-    requests_cache.install_cache('web_cache', backend='sqlite', expire_after=86400)
-    logging.info("Requests cache re-enabled for URL scraping.")
+    # Use ChromaDB's native OpenAI Embedding Function
+    embedding_function = embedding_functions.OpenAIEmbeddingFunction(
+        api_key=os.environ.get('OPENAI_API_KEY'),
+        model_name=EMBEDDING_MODEL_NAME
+    )
 
     collection = client.get_or_create_collection(
         name=collection_name,
-        embedding_function=embedding_function,
+        embedding_function=embedding_function
     )
 
     text_splitter = RecursiveCharacterTextSplitter(
@@ -163,7 +156,6 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
                 logging.info(f"Loaded from cache: {url}")
 
             response.raise_for_status()
-
             content_type = response.headers.get('Content-Type', '').lower()
             if 'text/html' not in content_type:
                 logging.warning(f"Skipping URL {url} as it is not HTML (Content-Type: {content_type})")
@@ -180,7 +172,7 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
             for i, chunk_text in enumerate(chunks):
                 all_chunks.append(chunk_text)
                 all_metadatas.append({"source": url, "chunk_index": i})
-                all_ids.append(f"{url}#{i}") # Create a deterministic ID
+                all_ids.append(f"{url}#{i}")
 
             logging.info(f"Successfully processed and chunked {url}. Found {len(chunks)} chunks.")
 
@@ -192,7 +184,6 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
     if all_chunks:
         logging.info(f"Adding {len(all_chunks)} chunks to ChromaDB collection '{collection_name}'.")
         try:
-            # ChromaDB's `add` is an "upsert" - it will update existing documents with the same ID
             collection.add(
                 documents=all_chunks,
                 metadatas=all_metadatas,
@@ -208,7 +199,6 @@ def rag_ingest_urls(urls: list[str], collection_name: str, persist_directory: st
     return collection
 
 if __name__ == "__main__":
-    # Uses settings from config.py when run directly
     rag_ingest_urls(
         urls=URLS,
         collection_name=CHROMA_COLLECTION_NAME,

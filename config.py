@@ -29,13 +29,13 @@ URLS = [
 
 # --- ChromaDB Settings ---
 # The directory where the ChromaDB database will be stored.
-CHROMA_PERSIST_DIRECTORY = "./askhertsdb2"
+CHROMA_PERSIST_DIRECTORY = "./askhertsdbopenai"
 # The name of the collection within ChromaDB.
 CHROMA_COLLECTION_NAME = "herts_info_collection"
 
 # --- RAG Model Settings ---
 # The embedding model to be used for both ingestion and retrieval.
-EMBEDDING_MODEL_NAME = "BAAI/bge-large-en-v1.5"
+EMBEDDING_MODEL_NAME = "text-embedding-3-small"
 # The language model to be used for generating answers.
 LLM_MODEL_NAME = "gpt-4o"
 

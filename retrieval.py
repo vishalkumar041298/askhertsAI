@@ -28,10 +28,21 @@ def query_rag(query_text: str):
 
 if __name__ == "__main__":
     # Example usage
-    user_query = "What is the cost to replace a lost ID card and what are the visa fees?"
-    print(f"Attempting to answer query: '{user_query}'")
-    
-    final_answer = query_rag(user_query)
+    questions = ['replacement id card fees?', 'I want to get studnet letter?',
+                 'on campus laundry facilities?', 'council tax excemptions',]
+    for idx, user_query in enumerate(questions):
+    # user_query = "What is the cost to replace a lost ID card?"
+        print('\n\n')
+        print(f"{idx+1} query: '{user_query}'")
+        
+        final_answer = query_rag(user_query)
 
-    print("\n--- Generated Answer ---")
-    print(final_answer)
+        print("\n--- Generated Answer ---")
+        print(final_answer)
+        print('\n\n\n\n')
+
+# https://ask.herts.ac.uk/student-letters-cae5998a-cefd-447d-ab93-526064295952
+# https://ask.herts.ac.uk/laundry-on-campus
+# https://ask.herts.ac.uk/replacement-id-cards-lost-damaged-stolen
+# https://ask.herts.ac.uk/council-tax-exemption
+

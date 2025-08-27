@@ -1,6 +1,6 @@
 # AskhertsAI: A RAG-based Question Answering System for University of Hertfordshire Students
 
-Of course, here are the setup and running instructions for the project.
+
 
 ## Setup and Installation
 
